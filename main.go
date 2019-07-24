@@ -136,8 +136,8 @@ type UrlStruct struct {
 }
 
 type KeyValue struct {
-	Key		string
-	Value 	string
+	Key		string	`json:"key"`
+	Value 	string  `json:"value"`
 }
 
 func jsonFormat(u *url.URL, _ string) []string {

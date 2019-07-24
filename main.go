@@ -3,14 +3,16 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/jakewarren/tldomains"
 	"net/url"
 	"os"
 	"regexp"
-
-	"github.com/jakewarren/tldomains"
 )
+
+
 
 func main() {
 
@@ -28,6 +30,7 @@ func main() {
 	fmtStr := flag.Arg(1)
 
 	procFn, ok := map[string]urlProc{
+		"json":		jsonFormat,
 		"keys":     keys,
 		"values":   values,
 		"keypairs": keyPairs,
@@ -44,6 +47,13 @@ func main() {
 	}
 
 	sc := bufio.NewScanner(os.Stdin)
+	//file, err := os.Open("urls.txt")
+	//if err != nil {
+	//	log.Fatal("could not read file")
+	//}
+	//defer file.Close()
+	//
+	//sc := bufio.NewScanner(file)
 
 	seen := make(map[string]bool)
 
@@ -111,6 +121,52 @@ func parseURL(raw string) (*url.URL, error) {
 // return multiple strings; e.g. the keys function.
 type urlProc func(*url.URL, string) []string
 
+type UrlStruct struct {
+	Scheme     string   `json:"scheme"`
+	Opaque     string    `json:"opaque"`// encoded opaque data
+	User       *url.Userinfo  `json:"user"`// username and password information
+	Host       string    `json:"host"`// host or host:port
+	Path       string    `json:"path"`// path (relative paths may omit leading slash)
+	RawPath    string    `json:"raw_path"`// encoded path hint (see EscapedPath method)
+	ForceQuery bool      `json:"force_query"`// append a query ('?') even if RawQuery is empty
+	RawQuery   string    `json:"raw_query"`// encoded query values, without '?'
+	Fragment   string    `json:"fragment"`// fragment for references, without '#'
+	Parameters	[]KeyValue `json:"parameters"`
+	Url         string   `json:"url"`
+}
+
+type KeyValue struct {
+	Key		string
+	Value 	string
+}
+
+func jsonFormat(u *url.URL, _ string) []string {
+	parameters := []KeyValue{}
+	for key, vals := range u.Query() {
+		for _, val := range vals {
+			parameters = append(parameters, KeyValue{Key:key, Value:val})
+		}
+	}
+	newstructure := UrlStruct{Scheme:u.Scheme,
+		Opaque:u.Opaque,
+		User:u.User,
+		Host:u.Host,
+		Path:u.Path,
+		RawPath:u.RawPath,
+		ForceQuery:u.ForceQuery,
+		RawQuery:u.RawQuery,
+		Fragment:u.Fragment,
+		Parameters: parameters,
+		Url: u.String(),
+	}
+	outbytes, err := json.Marshal(newstructure)
+
+	if err == nil {
+		out := bytes.NewBuffer(outbytes).String()
+		return []string{out}
+	}
+	return []string{""}
+}
 // keys returns all of the keys used in the query string
 // portion of the URL. E.g. for /?one=1&two=2&three=3 it
 // will return []string{"one", "two", "three"}
@@ -311,6 +367,7 @@ func init() {
 		h += "  -v, --verbose  Verbose mode (output URL parse errors)\n\n"
 
 		h += "Modes:\n"
+		h += "  json     JSON encoded url objects\n"
 		h += "  keys     Keys from the query string (one per line)\n"
 		h += "  values   Values from the query string (one per line)\n"
 		h += "  keypairs Key=value pairs from the query string (one per line)\n"
